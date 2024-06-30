@@ -261,7 +261,6 @@ public class FilePickerPlugin implements MethodChannel.MethodCallHandler, Flutte
 
     private void tearDown() {
         this.activityBinding.removeActivityResultListener(this.delegate);
-        this.activityBinding.removeRequestPermissionsResultListener(this.delegate);
         this.activityBinding = null;
         if(this.observer != null) {
             this.lifecycle.removeObserver(this.observer);

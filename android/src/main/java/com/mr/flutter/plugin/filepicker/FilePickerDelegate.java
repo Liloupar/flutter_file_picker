@@ -1,9 +1,7 @@
 package com.mr.flutter.plugin.filepicker;
 
-import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -17,7 +15,6 @@ import android.util.Log;
 
 import androidx.annotation.RequiresApi;
 import androidx.annotation.VisibleForTesting;
-import androidx.core.app.ActivityCompat;
 
 import java.io.File;
 import java.io.IOException;
@@ -30,19 +27,18 @@ import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.PluginRegistry;
 
-public class FilePickerDelegate implements PluginRegistry.ActivityResultListener, PluginRegistry.RequestPermissionsResultListener {
+public class FilePickerDelegate implements PluginRegistry.ActivityResultListener {
 
     private static final String TAG = "FilePickerDelegate";
     private static final int REQUEST_CODE = (FilePickerPlugin.class.hashCode() + 43) & 0x0000ffff;
     private static final int SAVE_FILE_CODE = (FilePickerPlugin.class.hashCode() + 83) & 0x0000ffff;
 
     private final Activity activity;
-    private final PermissionManager permissionManager;
     private MethodChannel.Result pendingResult;
     private boolean isMultipleSelection = false;
     private boolean loadDataToMemory = false;
     private String type;
-    private int compressionQuality=20;
+    private int compressionQuality = 20;
     private String[] allowedExtensions;
     private EventChannel.EventSink eventSink;
 
@@ -51,20 +47,7 @@ public class FilePickerDelegate implements PluginRegistry.ActivityResultListener
     public FilePickerDelegate(final Activity activity) {
         this(
                 activity,
-                null,
-                new PermissionManager() {
-                    @Override
-                    public boolean isPermissionGranted(final String permissionName) {
-                        return ActivityCompat.checkSelfPermission(activity, permissionName)
-                                == PackageManager.PERMISSION_GRANTED;
-                    }
-
-                    @Override
-                    public void askForPermission(final String permissionName, final int requestCode) {
-                        ActivityCompat.requestPermissions(activity, new String[]{permissionName}, requestCode);
-                    }
-
-                }
+                null
         );
     }
 
@@ -73,10 +56,9 @@ public class FilePickerDelegate implements PluginRegistry.ActivityResultListener
     }
 
     @VisibleForTesting
-    FilePickerDelegate(final Activity activity, final MethodChannel.Result result, final PermissionManager permissionManager) {
+    FilePickerDelegate(final Activity activity, final MethodChannel.Result result) {
         this.activity = activity;
         this.pendingResult = result;
-        this.permissionManager = permissionManager;
     }
 
 
@@ -88,11 +70,11 @@ public class FilePickerDelegate implements PluginRegistry.ActivityResultListener
                 this.dispatchEventStatus(true);
                 final Uri uri = data.getData();
                 if (uri != null) {
-                  String  path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                    String path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
                             .getAbsolutePath() + File.separator + FileUtils.getFileName(uri, this.activity);
                     try {
                         OutputStream outputStream = this.activity.getContentResolver().openOutputStream(uri);
-                        if(outputStream != null){
+                        if (outputStream != null) {
                             outputStream.write(bytes);
                             outputStream.flush();
                             outputStream.close();
@@ -131,13 +113,13 @@ public class FilePickerDelegate implements PluginRegistry.ActivityResultListener
                             final int count = data.getClipData().getItemCount();
                             int currentItem = 0;
                             while (currentItem < count) {
-                                 Uri currentUri = data.getClipData().getItemAt(currentItem).getUri();
+                                Uri currentUri = data.getClipData().getItemAt(currentItem).getUri();
 
                                 if (Objects.equals(type, "image/*") && compressionQuality > 0) {
                                     currentUri = FileUtils.compressImage(currentUri, compressionQuality, activity.getApplicationContext());
                                 }
                                 final FileInfo file = FileUtils.openFileStream(FilePickerDelegate.this.activity, currentUri, loadDataToMemory);
-                                if(file != null) {
+                                if (file != null) {
                                     files.add(file);
                                     Log.d(FilePickerDelegate.TAG, "[MultiFilePick] File #" + currentItem + " - URI: " + currentUri.getPath());
                                 }
@@ -158,7 +140,7 @@ public class FilePickerDelegate implements PluginRegistry.ActivityResultListener
                                 Log.d(FilePickerDelegate.TAG, "[SingleFilePick] File URI:" + uri.toString());
                                 final String dirPath = FileUtils.getFullPathFromTreeUri(uri, activity);
 
-                                if(dirPath != null) {
+                                if (dirPath != null) {
                                     finishWithSuccess(dirPath);
                                 } else {
                                     finishWithError("unknown_path", "Failed to retrieve directory path.");
@@ -168,7 +150,7 @@ public class FilePickerDelegate implements PluginRegistry.ActivityResultListener
 
                             final FileInfo file = FileUtils.openFileStream(FilePickerDelegate.this.activity, uri, loadDataToMemory);
 
-                            if(file != null) {
+                            if (file != null) {
                                 files.add(file);
                             }
 
@@ -179,7 +161,7 @@ public class FilePickerDelegate implements PluginRegistry.ActivityResultListener
                                 finishWithError("unknown_path", "Failed to retrieve path.");
                             }
 
-                        } else if (data.getExtras() != null){
+                        } else if (data.getExtras() != null) {
                             Bundle bundle = data.getExtras();
                             if (bundle.keySet().contains("selectedItems")) {
                                 ArrayList<Parcelable> fileUris = getSelectedItems(bundle);
@@ -223,25 +205,6 @@ public class FilePickerDelegate implements PluginRegistry.ActivityResultListener
         return false;
     }
 
-    @Override
-    public boolean onRequestPermissionsResult(final int requestCode, final String[] permissions, final int[] grantResults) {
-
-        if (REQUEST_CODE != requestCode) {
-            return false;
-        }
-
-        final boolean permissionGranted =
-                grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
-
-        if (permissionGranted) {
-            this.startFileExplorer();
-        } else {
-            finishWithError("read_external_storage_denied", "User did not allow reading external storage");
-        }
-
-        return true;
-    }
-
     private boolean setPendingMethodCallAndResult(final MethodChannel.Result result) {
         if (this.pendingResult != null) {
             return false;
@@ -255,8 +218,8 @@ public class FilePickerDelegate implements PluginRegistry.ActivityResultListener
     }
 
     @SuppressWarnings("deprecation")
-    private ArrayList<Parcelable> getSelectedItems(Bundle bundle){
-        if(Build.VERSION.SDK_INT >= 33){
+    private ArrayList<Parcelable> getSelectedItems(Bundle bundle) {
+        if (Build.VERSION.SDK_INT >= 33) {
             return bundle.getParcelableArrayList("selectedItems", Parcelable.class);
         }
 
@@ -315,16 +278,8 @@ public class FilePickerDelegate implements PluginRegistry.ActivityResultListener
         this.isMultipleSelection = isMultipleSelection;
         this.loadDataToMemory = withData;
         this.allowedExtensions = allowedExtensions;
-        this.compressionQuality=compressionQuality;
-        // `READ_EXTERNAL_STORAGE` permission is not needed since SDK 33 (Android 13 or higher).
-        // `READ_EXTERNAL_STORAGE` & `WRITE_EXTERNAL_STORAGE` are no longer meant to be used, but classified into granular types.
-        // Reference: https://developer.android.com/about/versions/13/behavior-changes-13
-        if (Build.VERSION.SDK_INT < 33) {
-            if (!this.permissionManager.isPermissionGranted(Manifest.permission.READ_EXTERNAL_STORAGE)) {
-                this.permissionManager.askForPermission(Manifest.permission.READ_EXTERNAL_STORAGE, REQUEST_CODE);
-                return;
-            }
-        }
+        this.compressionQuality = compressionQuality;
+
         this.startFileExplorer();
     }
 
@@ -370,7 +325,7 @@ public class FilePickerDelegate implements PluginRegistry.ActivityResultListener
             if (data != null && !(data instanceof String)) {
                 final ArrayList<HashMap<String, Object>> files = new ArrayList<>();
 
-                for (FileInfo file : (ArrayList<FileInfo>)data) {
+                for (FileInfo file : (ArrayList<FileInfo>) data) {
                     files.add(file.toMap());
                 }
                 data = files;
@@ -393,7 +348,7 @@ public class FilePickerDelegate implements PluginRegistry.ActivityResultListener
 
     private void dispatchEventStatus(final boolean status) {
 
-        if(eventSink == null || type.equals("dir")) {
+        if (eventSink == null || type.equals("dir")) {
             return;
         }
 
@@ -408,12 +363,6 @@ public class FilePickerDelegate implements PluginRegistry.ActivityResultListener
 
     private void clearPendingResult() {
         this.pendingResult = null;
-    }
-
-    interface PermissionManager {
-        boolean isPermissionGranted(String permissionName);
-
-        void askForPermission(String permissionName, int requestCode);
     }
 
 }

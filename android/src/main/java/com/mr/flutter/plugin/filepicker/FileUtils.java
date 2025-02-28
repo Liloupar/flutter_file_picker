@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.content.ContentUris;
 import android.content.Context;
+import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -273,14 +274,14 @@ public class FileUtils {
                 buf.read(bytes, 0, bytes.length);
                 buf.close();
             } catch (FileNotFoundException e) {
-                Log.e(TAG, "File not found: " + e.getMessage(), null);
+                Log.e(TAG, "File not found: " + e.getMessage(), e);
             } catch (IOException e) {
-                Log.e(TAG, "Failed to close file streams: " + e.getMessage(), null);
+                Log.e(TAG, "Failed to close file streams: " + e.getMessage(), e);
             }
             fileInfo.withData(bytes);
 
         }  catch (Exception e) {
-            Log.e(TAG, "Failed to load bytes into memory with error " + e.toString() + ". Probably the file is too big to fit device memory. Bytes won't be added to the file this time.");
+            Log.e(TAG, "Failed to load bytes into memory with error " + e.toString() + ". Probably the file is too big to fit device memory. Bytes won't be added to the file this time.", e);
         }
     }
 
@@ -300,6 +301,19 @@ public class FileUtils {
                 fos = new FileOutputStream(path);
                 try {
                     final BufferedOutputStream out = new BufferedOutputStream(fos);
+                    //添加权限
+                    //copy from https://stackoverflow.com/questions/42584327/when-using-intent-action-get-content-how-to-avoid-securityexception
+                    try {
+                        context.grantUriPermission(
+                                context.getPackageName(),
+                                uri,
+                                Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        );
+                    }  catch (Exception e) {
+                        // ignore
+                        Log.e("file_picker", "授权尝试2, 失败", e);
+                    }
+
                     final InputStream in = context.getContentResolver().openInputStream(uri);
 
                     final byte[] buffer = new byte[8192];
@@ -317,10 +331,10 @@ public class FileUtils {
                 try {
                     fos.close();
                 } catch (final IOException | NullPointerException ex) {
-                    Log.e(TAG, "Failed to close file streams: " + e.getMessage(), null);
+                    Log.e(TAG, "Failed to close file streams: " + e.getMessage(), e);
                     return null;
                 }
-                Log.e(TAG, "Failed to retrieve path: " + e.getMessage(), null);
+                Log.e(TAG, "Failed to retrieve path: " + e.getMessage(), e);
                 return null;
             }
         }

@@ -288,6 +288,19 @@ public class FileUtils {
     public static FileInfo openFileStream(final Context context, final Uri uri, boolean withData) {
 
         Log.i(TAG, "Caching from URI: " + uri.toString());
+        //添加权限
+        //copy from https://stackoverflow.com/questions/42584327/when-using-intent-action-get-content-how-to-avoid-securityexception
+        try {
+            context.grantUriPermission(
+                    context.getPackageName(),
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+            );
+        }  catch (Exception e) {
+            // ignore
+            Log.e("file_picker", "授权尝试2, 失败", e);
+        }
+
         FileOutputStream fos = null;
         final FileInfo.Builder fileInfo = new FileInfo.Builder();
         final String fileName = FileUtils.getFileName(uri, context);
@@ -301,19 +314,6 @@ public class FileUtils {
                 fos = new FileOutputStream(path);
                 try {
                     final BufferedOutputStream out = new BufferedOutputStream(fos);
-                    //添加权限
-                    //copy from https://stackoverflow.com/questions/42584327/when-using-intent-action-get-content-how-to-avoid-securityexception
-                    try {
-                        context.grantUriPermission(
-                                context.getPackageName(),
-                                uri,
-                                Intent.FLAG_GRANT_READ_URI_PERMISSION
-                        );
-                    }  catch (Exception e) {
-                        // ignore
-                        Log.e("file_picker", "授权尝试2, 失败", e);
-                    }
-
                     final InputStream in = context.getContentResolver().openInputStream(uri);
 
                     final byte[] buffer = new byte[8192];
